@@ -1,0 +1,7 @@
+import { replyToAssistant } from "@/server/assistant";
+import { apiError, jsonBody, jsonResponse } from "@/app/api/_shared";
+export const runtime = "nodejs";
+export async function POST(request: Request) {
+  try { const body = await jsonBody(request); return jsonResponse(await replyToAssistant(body.message, body.context)); }
+  catch (error) { return apiError(error); }
+}

@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.data/
+.pnpm-store/
+.logs/
+*.tsbuildinfo
+*.log
+.env*
+!.env.example
+.DS_Store
