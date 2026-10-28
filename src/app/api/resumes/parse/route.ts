@@ -1,5 +1,6 @@
-import { HttpError, text } from "@/server/db";
-import { parseResumeInput } from "@/server/resume";
+import { HttpError } from "@/server/errors";
+import { text } from "@/server/validation";
+import { parseResumeInput } from "@/server/services/resume.service";
 import { apiError, formBody, jsonResponse } from "@/app/api/_shared";
 export const runtime = "nodejs";
 export async function POST(request: Request) {

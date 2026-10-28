@@ -1,4 +1,4 @@
-import { replyToAssistant } from "@/server/assistant";
+import { replyToAssistant } from "@/server/services/assistant.service";
 import { apiError, jsonBody, jsonResponse } from "@/app/api/_shared";
 export const runtime = "nodejs";
 export async function POST(request: Request) {

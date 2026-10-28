@@ -1,4 +1,7 @@
-import { createCandidate, HttpError, MAX_FILE_BYTES, text } from "@/server/db";
+import { createCandidate } from "@/server/services/recruitment.service";
+import { MAX_FILE_BYTES } from "@/server/services/resume.service";
+import { HttpError } from "@/server/errors";
+import { text } from "@/server/validation";
 import { apiError, formBody, jsonResponse } from "@/app/api/_shared";
 export const runtime = "nodejs";
 const MIME_BY_EXTENSION: Record<string, string> = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain; charset=utf-8" };

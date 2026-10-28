@@ -1,4 +1,4 @@
-import { getOriginalFile } from "@/server/db";
+import { getOriginalFile } from "@/server/services/recruitment.service";
 import { apiError } from "@/app/api/_shared";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

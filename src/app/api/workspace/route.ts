@@ -1,4 +1,4 @@
-import { getWorkspace } from "@/server/db";
+import { getWorkspace } from "@/server/services/recruitment.service";
 import { apiError, jsonResponse } from "@/app/api/_shared";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

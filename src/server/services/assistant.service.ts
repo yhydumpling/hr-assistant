@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { STAGES } from "@/lib/types";
 import type { ActionPreview, AssistantContext, AssistantReply, Candidate, ParsedIntent, Workspace } from "@/lib/types";
-import { getWorkspace, HttpError, record, saveAction, text } from "@/server/db";
-import { interpretMessage, shanghaiToday } from "@/server/intent";
+import { HttpError } from "@/server/errors";
+import { record, text, validId } from "@/server/validation";
+import { getWorkspace } from "@/server/repositories/workspace.repository";
+import { cancelPendingAction, commitPendingAction, saveAction } from "@/server/repositories/actions.repository";
+import { interpretMessage, shanghaiToday } from "@/server/parsers/intent-parser";
 
 const KINDS = new Set(["query_interviews", "query_followups", "query_candidate", "query_job", "query_activity", "update_stage", "schedule_interview", "unknown"]);
 const ROUNDS = new Set(["一面", "复试", "终面"]);
@@ -133,4 +136,12 @@ export async function replyToAssistant(messageValue: unknown, contextValue?: unk
   const preview: ActionPreview = { id: `action_${randomUUID()}`, kind: intent.kind, title, candidateId: candidate.id, candidateName: candidate.name, changes, expiresAt: new Date(now.getTime() + 10 * 60_000).toISOString() };
   await saveAction(preview, candidate.version, normalized);
   return { kind: "action", message: `请核对「${candidate.name} · ${candidate.jobTitle}」的确认卡。点击确认后才会更新数据库并写入操作记录；卡片有效期 10 分钟。`, context: null, action: preview };
+}
+
+export async function confirmAction(actionId: unknown) {
+  return commitPendingAction(validId(actionId, "操作 ID"));
+}
+
+export async function cancelAction(actionId: unknown) {
+  return cancelPendingAction(validId(actionId, "操作 ID"));
 }

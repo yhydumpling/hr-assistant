@@ -1,4 +1,5 @@
-import { HttpError, record } from "@/server/db";
+import { HttpError } from "@/server/errors";
+import { record } from "@/server/validation";
 
 export async function jsonBody(request: Request) {
   try { return record(await request.json()); }
