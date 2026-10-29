@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { ActionPreview, AssistantContext, AssistantReply, ConfirmationResult, Workspace } from "@/lib/types";
+import type { ActionPreview, AssistantContext, AssistantReply, ConfirmationResult, EmailDraft, Workspace } from "@/lib/types";
 import { ApiError, json, messageOf, request } from "@/lib/api-client";
+import type { EmailDraftForm } from "../components/email-draft-card";
 
 export type ActionState = {
   status: "pending" | "confirming" | "cancelling" | "applied" | "cancelled" | "expired";
@@ -14,6 +15,7 @@ export type ChatMessage = {
   text: string;
   rows?: AssistantReply["rows"];
   action?: ActionPreview;
+  emailDraft?: EmailDraft;
   error?: boolean;
 };
 export type AssistantDraft = { id: string; text: string };
@@ -24,9 +26,10 @@ export function useAssistant(workspace: Workspace, refreshAfterWrite: () => Prom
   const [chatBusy, setChatBusy] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [actionStates, setActionStates] = useState<Record<string, ActionState>>({});
+  const [emailForms, setEmailForms] = useState<Record<string, EmailDraftForm>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: "welcome", role: "assistant",
-    text: "你好，我是 TSIN 招聘助手。\n你可以查询候选人、面试安排和处理记录。需要推进阶段或安排面试时，我会先整理变更内容，等你确认后再执行。"
+    text: "你好，我是 HR招聘助手。告诉我你要跟进哪位候选人，我可以帮你查询进度、更新阶段、邀约面试和起草带抄送的邀请邮件。"
   }]);
   const [now, setNow] = useState(0);
 
@@ -59,7 +62,7 @@ export function useAssistant(workspace: Workspace, refreshAfterWrite: () => Prom
       const reply = await request<AssistantReply>("/api/assistant", json({ message: text, ...(context ? { context } : {}) }));
       setContext(reply.context ?? null);
       if (reply.action) setActionStates(all => all[reply.action!.id] ? all : ({ ...all, [reply.action!.id]: { status: "pending" } }));
-      setMessages(all => [...all, { id: crypto.randomUUID(), role: "assistant", text: reply.message, rows: reply.rows, action: reply.action }]);
+      setMessages(all => [...all, { id: crypto.randomUUID(), role: "assistant", text: reply.message, rows: reply.rows, action: reply.action, emailDraft: reply.emailDraft }]);
     } catch (error) {
       setMessages(all => [...all, { id: crypto.randomUUID(), role: "assistant", text: `这次请求未完成：${messageOf(error)} 请重新发送或补充。`, error: true }]);
     } finally { setChatBusy(false); }
@@ -78,8 +81,13 @@ export function useAssistant(workspace: Workspace, refreshAfterWrite: () => Prom
       const result = await request<ConfirmationResult>(`/api/assistant/${operation}`, json({ actionId: action.id }));
       setActionStates(all => ({ ...all, [action.id]: { status: operation === "confirm" ? "applied" : "cancelled", message: result.message } }));
       setContext(null);
-      if (operation === "cancel") setMessages(all => [...all, { id: crypto.randomUUID(), role: "assistant", text: result.message }]);
-      if (operation === "confirm") await refreshAfterWrite();
+      if (operation === "cancel" || result.emailDraft) setMessages(all => [...all, { id: crypto.randomUUID(), role: "assistant", text: result.message, emailDraft: result.emailDraft }]);
+      if (operation === "confirm") {
+        try { await refreshAfterWrite(); }
+        catch (error) {
+          setMessages(all => [...all, { id: crypto.randomUUID(), role: "assistant", text: `操作已经完成，工作台刷新未成功：${messageOf(error)} 请刷新页面查看最新进度。`, error: true }]);
+        }
+      }
     } catch (error) {
       const final = error instanceof ApiError && [404, 409, 410].includes(error.status);
       setActionStates(all => ({ ...all, [action.id]: { status: final ? "expired" : "pending", message: messageOf(error) } }));
@@ -88,6 +96,7 @@ export function useAssistant(workspace: Workspace, refreshAfterWrite: () => Prom
 
   return {
     chatInput, setChatInput, context, clearContext: () => setContext(null),
-    chatBusy, activeAction, actionStates, messages, now, sendMessage, handleAction
+    chatBusy, activeAction, actionStates, messages, now, sendMessage, handleAction,
+    emailForms, updateEmailForm: (id: string, form: EmailDraftForm) => setEmailForms(all => ({ ...all, [id]: form }))
   };
 }

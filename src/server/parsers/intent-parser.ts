@@ -6,7 +6,42 @@ type DateSlot = { mentioned: boolean; value?: string };
 
 const DAY_MS = 86_400_000;
 const NUMERALS = "零〇一二两三四五六七八九十";
-const actionKinds = new Set(["update_stage", "schedule_interview"]);
+const actionKinds = new Set(["update_stage", "schedule_interview", "compose_email"]);
+
+const EMAIL = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9.-]*[A-Z0-9])?\.[A-Z]{2,}$/i;
+const trimMailSentence = (value: string) => value.trim().replace(/[。.！!？?]+$/, "");
+type MailSlots = { slots: Pick<ParsedIntent, "emailRequested" | "recipientEmail" | "cc">; error?: { field: "email" | "cc"; message: string } };
+
+/** Mail labels have their own boundaries so CC is never silently treated as the recipient. */
+export function readMailInstructions(message: string, context?: AssistantContext | null): MailSlots {
+  const slots: MailSlots["slots"] = {};
+  const ccMatch = /(?:抄送(?:邮箱)?|\bcc\b)(?:给|到|是|为|[:：])?\s*(.*)/i.exec(message);
+  const recipientMatch = /((?:收件邮箱|收件人|(?:发送|发)给|(?:联系)?邮箱))(?:是|为|[:：])?\s*([^，,。；;\n]+?)(?=[，,。；;\n]|抄送|\bcc\b|$)/i.exec(message);
+  if (/邮件|邮箱|抄送|\bcc\b/i.test(message)) slots.emailRequested = true;
+  if (ccMatch) {
+    const raw = ccMatch[1].split(/(?:地点|位置|面试官|收件人|收件邮箱|邮箱|主题|正文|候选人\s*ID)(?:是|为|[:：])?/i)[0].replace(/[，,;；\s]+$/, "");
+    const values = raw.split(/[,，、;；\s]+|\s*和\s*|\s*以及\s*|\band\b/i).map(trimMailSentence).filter(Boolean);
+    if (!values.length || values.length > 10 || values.some(value => value.length > 150 || !EMAIL.test(value))) return { slots, error: { field: "cc", message: "请提供有效的抄送邮箱，多个地址用逗号分隔，最多 10 个。例如：抄送 hr@example.com。" } };
+    slots.cc = [...new Map(values.map(value => [value.toLowerCase(), value])).values()];
+  }
+  const isCcLabel = recipientMatch && /抄送\s*$/.test(message.slice(0, recipientMatch.index));
+  const isNamedAddressee = recipientMatch && /发给|发送给/.test(recipientMatch[1]) && !recipientMatch[2].includes("@");
+  let recipient = !isCcLabel && !isNamedAddressee ? recipientMatch?.[2]?.trim() : undefined;
+  if (!recipient && !ccMatch && context?.missing.includes("email")) recipient = message.trim();
+  if (!ccMatch && !recipient && context?.missing.includes("cc")) {
+    const values = message.trim().split(/[,，、;；\s]+/).map(trimMailSentence).filter(Boolean);
+    if (!values.length || values.length > 10 || values.some(value => !EMAIL.test(value))) return { slots, error: { field: "cc", message: "请重新提供完整的抄送邮箱，多个地址用逗号分隔。" } };
+    slots.cc = [...new Map(values.map(value => [value.toLowerCase(), value])).values()];
+    slots.emailRequested = true;
+  }
+  if (recipient) {
+    recipient = trimMailSentence(recipient);
+    if (recipient.length > 150 || !EMAIL.test(recipient)) return { slots, error: { field: "email", message: "请提供候选人的完整收件邮箱，例如 candidate@example.com；抄送邮箱不能代替收件邮箱。" } };
+    slots.recipientEmail = recipient;
+    slots.emailRequested = true;
+  }
+  return { slots };
+}
 
 export function shanghaiToday(now: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -68,7 +103,7 @@ function numberValue(value: string): number {
 
 function readTime(message: string): DateSlot {
   const clock = /(\d{1,2})[：:](\d{1,2})/.exec(message);
-  const chinese = new RegExp(`(凌晨|早上|上午|中午|下午|傍晚|晚上|夜里)?\\s*([${NUMERALS}\\d]{1,3})(?:点|时)(半|一刻|三刻|([${NUMERALS}\\d]{1,3})分?)?`).exec(message);
+  const chinese = new RegExp(`(凌晨|早上|上午|中午|下午|傍晚|晚上|夜里)?\\s*([${NUMERALS}\\d]{1,3})(?:点|时)(半|一刻|三刻|([${NUMERALS}\\d]{1,3})分?(?!面))?`).exec(message);
   if (!clock && !chinese) return { mentioned: /\d+[：:]\d|[零〇一二两三四五六七八九十\d]+[点时]|上午|下午|晚上|中午/.test(message) };
   let hour = clock ? Number(clock[1]) : numberValue(chinese![2]);
   const minute = clock ? Number(clock[2]) : chinese![3] === "半" ? 30 : chinese![3] === "一刻" ? 15 : chinese![3] === "三刻" ? 45 : chinese![4] ? numberValue(chinese![4]) : 0;
@@ -127,7 +162,7 @@ function readHints(message: string, candidates: CandidateHint[], jobs: JobHint[]
 }
 
 function readNamedSlot(message: string, label: string): string | undefined {
-  const match = new RegExp(`${label}(?:是|为|[:：])?\\s*(.+?)(?=[，,。；;\\n]|(?:地点|面试官|时间)(?:是|为|[:：])|$)`).exec(message);
+  const match = new RegExp(`${label}(?:是|为|[:：])?\\s*(.+?)(?=[，,。；;\\n]|(?:地点|面试官|时间|抄送|收件人|收件邮箱|邮箱|cc)(?:是|为|[:：])?|$)`, "i").exec(message);
   const value = match?.[1]?.trim();
   if (value && value.length <= 60 && !/^(?:待定|不知道|不清楚|还没定|暂无)$/.test(value)) return value;
 }
@@ -162,6 +197,7 @@ export function interpretMessage(
   const stage = readStage(text);
   const interviewer = readNamedSlot(text, "面试官");
   const location = readNamedSlot(text, "(?:地点|位置)");
+  const mail = readMailInstructions(text, context);
   const count = new RegExp(`(?:最近|最新|前|查看|显示)\\s*([${NUMERALS}\\d]{1,3})\\s*(?:条|个|位|场)`).exec(text);
   const limit = count ? Math.max(1, Math.min(10, numberValue(count[1]))) : undefined;
   const slots: Omit<ParsedIntent, "kind"> = {};
@@ -176,17 +212,26 @@ export function interpretMessage(
   if (/面试官/.test(text)) slots.interviewer = interviewer;
   if (/地点|位置/.test(text)) slots.location = location;
   if (limit && Number.isFinite(limit)) slots.limit = limit;
+  Object.assign(slots, mail.slots);
+
+  const interviewWords = /面试|一面|初面|复试|二面|终面|三面/.test(text);
+  const draftCommand = /邮件|抄送|\bcc\b/i.test(text) && /写|生成|草稿|起草|拟|邮件|抄送|\bcc\b/i.test(text);
+  const explicitScheduling = /安排|预约|创建|新增|设置|约个|约一下|约在|邀约|邀请|(?:^|给|帮|请|把)约/.test(text) && interviewWords;
+  // Writing an invitation is distinct from registering a new interview.
+  const writingOnly = /写|生成|草稿|起草|拟|发送|发.{0,8}邮件/.test(text) && /邮件/.test(text) && !/安排|预约|创建|新增|设置|邀约/.test(text);
+  const scheduling = explicitScheduling && !writingOnly;
+  const mailQuestion = /是否|有没有|发(?:送|出)了吗|什么|哪些|查询|查看|查一下/.test(text) && !/写|生成|草稿|起草|拟/.test(text);
+  if (draftCommand && !mailQuestion && !scheduling && (!context || /写|生成|草稿|起草|拟|面试邀请/.test(text))) return { kind: "compose_email", ...slots, emailRequested: true };
 
   const question = /[？?]|查询|查看|查一下|查查|(?:^|请|帮我|给我)查|看看|显示|列出|告诉我|有哪些|有谁|多少|几位|几场|什么|几点|何时|是否|有没有|会不会|能不能|能否|可不可以|怎么|如何|(?:吗|么|呢)[。!！]?$|现在.*(?:阶段|状态|进度)/.test(text);
   if (question) return { kind: queryKind(text, hints), ...slots };
 
-  const scheduling = /安排|预约|创建|新增|设置|约个|约一下|约在/.test(text) && /面试|一面|初面|复试|二面|终面|三面/.test(text);
   const datedRound = Boolean(round && date.value && (time.value || hints.hasCandidate));
-  if (scheduling) return { kind: "schedule_interview", ...slots, round };
+  if (scheduling) return { kind: "schedule_interview", ...slots, round, ...(/邀约|邀请/.test(text) || mail.slots.emailRequested ? { emailRequested: true } : {}) };
   if (stage && context?.intent.kind === "update_stage" && context.missing.includes("stage") && !hints.hasCandidate) {
     return { ...context.intent, ...slots, stage };
   }
-  const updateCommand = /更新|推进|改为|改成|调整为|调整到|进入/.test(text) && /阶段|状态|筛选|一面|初面|复试|二面|offer|入职|淘汰/i.test(text);
+  const updateCommand = /更新|推进|改为|改成|调整为|调整到|进入/.test(text) && /阶段|状态|进度|进展|筛选|一面|初面|复试|二面|offer|入职|淘汰/i.test(text);
   const stageFact = /通过|过了|接受|拒绝|淘汰|入职了|已入职|发.{0,2}offer/i.test(text);
   if (updateCommand || (stage && (hints.hasCandidate || stageFact)) || (stageFact && hints.hasCandidate)) return { kind: "update_stage", ...slots, stage };
 
@@ -202,7 +247,8 @@ export function interpretMessage(
     Boolean(previous?.candidateName && !previous.candidateId && hints.hasJob))) ||
     (missing.includes("job") && hints.hasJob) || (missing.includes("date") && date.mentioned) ||
     (missing.includes("time") && time.mentioned) || (missing.includes("round") && Boolean(round)) ||
-    (missing.includes("stage") && Boolean(stage));
+    (missing.includes("stage") && Boolean(stage)) ||
+    (missing.includes("email") && Boolean(slots.recipientEmail)) || (missing.includes("cc") && Boolean(slots.cc));
   const actionSlot = Object.keys(slots).some(key => key !== "limit");
   if (previous && previousIsKnown && (fillsPending || (actionKinds.has(previous.kind) && actionSlot))) {
     const merged = { ...previous, ...slots };

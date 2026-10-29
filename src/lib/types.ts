@@ -68,7 +68,7 @@ export type Workspace = {
 export type IntentKind =
   | "query_interviews" | "query_followups" | "query_candidate"
   | "query_job" | "query_activity" | "update_stage"
-  | "schedule_interview" | "unknown";
+  | "schedule_interview" | "compose_email" | "unknown";
 
 export type ParsedIntent = {
   kind: IntentKind;
@@ -82,6 +82,19 @@ export type ParsedIntent = {
   interviewer?: string;
   location?: string;
   limit?: number;
+  emailRequested?: boolean;
+  recipientEmail?: string;
+  cc?: string[];
+};
+
+export type EmailDraft = {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  to: string[];
+  cc: string[];
+  subject: string;
+  body: string;
 };
 
 export type AssistantContext = {
@@ -105,9 +118,11 @@ export type AssistantReply = {
   context?: AssistantContext | null;
   action?: ActionPreview;
   rows?: { title: string; detail: string }[];
+  emailDraft?: EmailDraft;
 };
 
 export type ConfirmationResult = {
   message: string;
   alreadyApplied?: boolean;
+  emailDraft?: EmailDraft;
 };

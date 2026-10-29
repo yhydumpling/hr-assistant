@@ -5,9 +5,10 @@ import { HttpError } from "@/server/errors";
 import { record, text, validId } from "@/server/validation";
 import { getWorkspace } from "@/server/repositories/workspace.repository";
 import { cancelPendingAction, commitPendingAction, saveAction } from "@/server/repositories/actions.repository";
-import { interpretMessage, shanghaiToday } from "@/server/parsers/intent-parser";
+import { interpretMessage, readMailInstructions, shanghaiToday } from "@/server/parsers/intent-parser";
+import { buildInvitationDraft, normalizeCc, normalizeEmail } from "@/server/services/email-draft";
 
-const KINDS = new Set(["query_interviews", "query_followups", "query_candidate", "query_job", "query_activity", "update_stage", "schedule_interview", "unknown"]);
+const KINDS = new Set(["query_interviews", "query_followups", "query_candidate", "query_job", "query_activity", "update_stage", "schedule_interview", "compose_email", "unknown"]);
 const ROUNDS = new Set(["一面", "复试", "终面"]);
 
 function safeContext(value: unknown): AssistantContext | undefined {
@@ -29,7 +30,13 @@ function safeContext(value: unknown): AssistantContext | undefined {
     intent.round = raw.round as ParsedIntent["round"];
   }
   if (typeof raw.limit === "number" && Number.isFinite(raw.limit)) intent.limit = Math.max(1, Math.min(20, Math.floor(raw.limit)));
-  if (!Array.isArray(input.missing) || input.missing.length > 6 || input.missing.some(item => !["candidate", "date", "time", "round", "stage", "job"].includes(String(item)))) throw new HttpError(400, "对话缺失字段无效，请重新描述。");
+  if (raw.emailRequested !== undefined) {
+    if (typeof raw.emailRequested !== "boolean") throw new HttpError(400, "邮件上下文无效，请重新描述。");
+    intent.emailRequested = raw.emailRequested;
+  }
+  if (raw.recipientEmail !== undefined) intent.recipientEmail = normalizeEmail(raw.recipientEmail, "收件邮箱");
+  if (raw.cc !== undefined) intent.cc = normalizeCc(raw.cc);
+  if (!Array.isArray(input.missing) || input.missing.length > 8 || input.missing.some(item => !["candidate", "date", "time", "round", "stage", "job", "email", "cc"].includes(String(item)))) throw new HttpError(400, "对话缺失字段无效，请重新描述。");
   return { intent, missing: input.missing.map(String) };
 }
 
@@ -99,6 +106,33 @@ function query(intent: ParsedIntent, workspace: Workspace): AssistantReply {
   return { kind: "unsupported", context: null, message: "目前支持查询面试、跟进、候选人阶段、岗位人数和操作记录。请描述你想查看哪一项。" };
 }
 
+function composeInvitation(intent: ParsedIntent, candidate: Candidate, workspace: Workspace, now: Date): AssistantReply {
+  const selected = workspace.interviews.filter(interview => interview.candidateId === candidate.id
+    && Date.parse(`${interview.date}T${interview.time}:00+08:00`) >= now.getTime()
+    && (!intent.round || interview.round === intent.round) && (!intent.date || interview.date === intent.date)
+    && (!intent.time || interview.time === intent.time));
+  const hasCompleteDetails = Boolean(intent.round && intent.date && intent.time);
+  if (!hasCompleteDetails && selected.length > 1) return {
+    ...clarification(intent, [!intent.date ? "date" : !intent.round ? "round" : "time"], "这位候选人有多场符合条件的面试，请补充日期、轮次或时间，确定要为哪一场起草邀请。"),
+    rows: selected.map(interview => ({ title: `${interview.date} ${interview.time} · ${interview.round}`, detail: `${interview.interviewer} · ${interview.location}` })),
+  };
+  const interview = selected.length === 1 ? selected[0] : undefined;
+  const details: ParsedIntent = {
+    ...intent,
+    round: intent.round || interview?.round, date: intent.date || interview?.date, time: intent.time || interview?.time,
+    interviewer: intent.interviewer || interview?.interviewer, location: intent.location || interview?.location,
+  };
+  if (!details.round || !ROUNDS.has(details.round)) return clarification(details, ["round"], "要起草一面、复试还是终面的邀请邮件？这一步只整理草稿，不登记面试。");
+  if (!details.date) return clarification(details, ["date"], `请补充「${candidate.name}」${details.round}的日期，用于邀请邮件。`);
+  if (!validDate(details.date)) return clarification({ ...details, date: undefined }, ["date"], "邀请日期无效，请提供完整日期或“明天”。");
+  if (!details.time || !/^([01]\d|2[0-3]):[0-5]\d$/.test(details.time)) return clarification({ ...details, time: undefined }, ["time"], "请补充邀请邮件中的面试时间，例如“下午3点”。");
+  if (Date.parse(`${details.date}T${details.time}:00+08:00`) < now.getTime() - 60_000) return clarification({ ...details, date: undefined, time: undefined }, ["date", "time"], "这场面试的时间已经过去，请提供未来的日期和时间。");
+  const emailDraft = buildInvitationDraft(candidate, { round: details.round, date: details.date, time: details.time, interviewer: details.interviewer, location: details.location }, details);
+  return { kind: "answer", context: null, message: interview
+    ? "已根据登记的面试整理邀请邮件草稿。请核对收件人、抄送和内容，再到邮件客户端发送。"
+    : "已按你提供的信息整理邀请邮件草稿，尚未登记面试或发送邮件。可在邮件客户端发送；需要登记时，请另外告诉我安排面试。", emailDraft };
+}
+
 export async function replyToAssistant(messageValue: unknown, contextValue?: unknown): Promise<AssistantReply> {
   const message = text(messageValue, "消息", 3000, true);
   const context = safeContext(contextValue);
@@ -106,12 +140,22 @@ export async function replyToAssistant(messageValue: unknown, contextValue?: unk
   const workspace = await getWorkspace();
   const now = new Date();
   const intent = interpretMessage(message, workspace.candidates, workspace.jobs, now, context);
+  const mailInstructions = readMailInstructions(message, context);
   if (intent.kind.startsWith("query_")) return query(intent, workspace);
-  if (intent.kind !== "update_stage" && intent.kind !== "schedule_interview") return { kind: "unsupported", context: null, message: "这句话暂未识别。我采用本地规则，不连接外部模型。你可以说“明天有哪些面试”“林书妍现在什么阶段”，或“安排陈亦安明天下午3点一面”；写入前会先给出确认卡。" };
+  if (mailInstructions.error) return clarification({ ...intent, kind: intent.kind === "unknown" ? "compose_email" : intent.kind, [mailInstructions.error.field === "cc" ? "cc" : "recipientEmail"]: undefined }, [mailInstructions.error.field], mailInstructions.error.message);
+  if (intent.kind !== "update_stage" && intent.kind !== "schedule_interview" && intent.kind !== "compose_email") return { kind: "unsupported", context: null, message: "请告诉我想查询哪位候选人的进度、更新到哪个阶段，或安排哪天的面试。也可以说“给陈亦安写面试邀请邮件，抄送 hr@example.com”。" };
   const resolved = resolveCandidate(intent, workspace);
   if ("reply" in resolved) return resolved.reply;
   const candidate = resolved.candidate;
   const normalized: ParsedIntent = { ...intent, candidateId: candidate.id, candidateName: candidate.name, jobTitle: candidate.jobTitle };
+  if (intent.kind === "compose_email" || (intent.kind === "schedule_interview" && intent.emailRequested)) {
+    normalized.emailRequested = true;
+    normalized.cc = normalizeCc(intent.cc || []);
+    try { normalized.recipientEmail = normalizeEmail(intent.recipientEmail || candidate.email, "收件邮箱"); }
+    catch { return clarification({ ...normalized, recipientEmail: undefined }, ["email"], `「${candidate.name}」的收件邮箱尚未确定，请提供完整邮箱。这个地址只用于本次邮件草稿，不修改候选人档案。`); }
+    normalized.cc = normalized.cc.filter(email => email.toLowerCase() !== normalized.recipientEmail!.toLowerCase());
+  }
+  if (normalized.kind === "compose_email") return composeInvitation(normalized, candidate, workspace, now);
   const changes: ActionPreview["changes"] = [];
   let title: string;
   if (intent.kind === "update_stage") {
@@ -131,11 +175,12 @@ export async function replyToAssistant(messageValue: unknown, contextValue?: unk
     normalized.location = text(intent.location || "待确定", "地点", 160, true);
     const stage = intent.round === "一面" ? "待一面" : "待复试";
     changes.push({ label: "招聘阶段", before: candidate.stage, after: stage }, { label: "面试轮次", after: intent.round }, { label: "面试时间（北京时间）", after: `${intent.date} ${intent.time}` }, { label: "面试官", after: `${normalized.interviewer}${intent.interviewer ? "" : "（未指定，默认）"}` }, { label: "地点 / 会议", after: `${normalized.location}${intent.location ? "" : "（未指定）"}` });
+    if (normalized.emailRequested) changes.push({ label: "邀请邮件", after: "确认面试后生成邮件草稿" }, { label: "收件人", after: normalized.recipientEmail! }, { label: "抄送", after: normalized.cc?.join("、") || "无" });
     title = `安排「${candidate.name}」的${intent.round}`;
   }
-  const preview: ActionPreview = { id: `action_${randomUUID()}`, kind: intent.kind, title, candidateId: candidate.id, candidateName: candidate.name, changes, expiresAt: new Date(now.getTime() + 10 * 60_000).toISOString() };
+  const preview: ActionPreview = { id: `action_${randomUUID()}`, kind: intent.kind as ActionPreview["kind"], title, candidateId: candidate.id, candidateName: candidate.name, changes, expiresAt: new Date(now.getTime() + 10 * 60_000).toISOString() };
   await saveAction(preview, candidate.version, normalized);
-  return { kind: "action", message: `请核对「${candidate.name} · ${candidate.jobTitle}」的确认卡。点击确认后才会更新数据库并写入操作记录；卡片有效期 10 分钟。`, context: null, action: preview };
+  return { kind: "action", message: normalized.emailRequested ? `请核对「${candidate.name}」的面试安排及邮件收件人。确认后登记面试并生成邀请邮件草稿，邮件需在客户端发送。` : `请核对「${candidate.name} · ${candidate.jobTitle}」的变更。`, context: null, action: preview };
 }
 
 export async function confirmAction(actionId: unknown) {

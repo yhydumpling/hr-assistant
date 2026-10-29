@@ -3,6 +3,7 @@ import type { ActionPreview, ConfirmationResult, ParsedIntent, Stage } from "@/l
 import { query, transaction } from "@/server/db/client";
 import { HttpError } from "@/server/errors";
 import { CANDIDATE_SELECT, candidateFromRow, id, iso, parseJson } from "@/server/repositories/mappers";
+import { buildInvitationDraft } from "@/server/services/email-draft";
 
 export async function saveAction(preview: ActionPreview, candidateVersion: number, intent: ParsedIntent) {
   await query("INSERT INTO pending_actions(id,candidate_id,candidate_version,intent_json,preview_json,expires_at,status,created_at) VALUES($1,$2,$3,$4,$5,$6,'pending',$7)", [preview.id, preview.candidateId, candidateVersion, JSON.stringify(intent), JSON.stringify(preview), preview.expiresAt, new Date().toISOString()]);
@@ -48,6 +49,10 @@ export async function commitPendingAction(actionId: string): Promise<Confirmatio
     if (changed.rowCount !== 1) throw new HttpError(409, "档案已变化，请重新生成确认卡。");
     await query("INSERT INTO activities(id,candidate_id,title,detail,created_at) VALUES($1,$2,$3,$4,$5)", [id("activity"), candidate.id, title, detail, now], client);
     const result: ConfirmationResult = { message: `已执行：${detail}` };
+    if (intent.kind === "schedule_interview" && intent.emailRequested && intent.round && intent.date && intent.time) {
+      result.emailDraft = buildInvitationDraft(candidate, { round: intent.round, date: intent.date, time: intent.time, interviewer: intent.interviewer, location: intent.location }, intent);
+      result.message += " 已生成邀请邮件草稿，尚未发送。";
+    }
     await query("UPDATE pending_actions SET status='confirmed',result_json=$1 WHERE id=$2 AND status='pending'", [JSON.stringify(result), actionId], client);
     return result;
   });

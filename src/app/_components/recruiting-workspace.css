@@ -1,0 +1,19 @@
+.brand.hr-brand { gap:9px; padding:0 5px; }
+.brand.hr-brand strong { font-size:19px; letter-spacing:-.4px; white-space:nowrap; font-weight:750; }
+.brand.hr-brand .brand-symbol { width:34px; height:36px; border-radius:10px; }
+.main-area { padding-bottom:92px; }
+.assistant-launcher { position:fixed; z-index:51; right:27px; bottom:24px; display:flex; align-items:center; gap:9px; min-height:50px; border:0; border-radius:27px; padding:0 20px; color:#fff; background:#7051d8; box-shadow:0 6px 23px #4e2a9b39; font-weight:600; }
+.assistant-launcher:hover { background:#5b3ebd; }
+.assistant-widget { position:fixed; z-index:50; right:27px; bottom:86px; width:min(460px,calc(100vw - 32px)); height:min(730px,calc(100dvh - 118px)); background:#fff; box-shadow:0 12px 48px #33244e2b; border-radius:15px; overflow:hidden; }
+.assistant-widget>.chat-panel { height:100%; min-height:0; border-radius:15px; }
+.assistant-widget .chat-panel-header { padding:16px 18px; }
+.assistant-widget .chat-messages { padding:20px 16px; }
+.assistant-widget .chat-compose { padding:13px 14px; }
+.assistant-widget .message-bubble { padding:10px 12px; font-size:13px; }
+.assistant-widget .chat-message { gap:8px; }
+.assistant-widget .message-content { width:calc(100% - 37px); }
+.assistant-widget .change-list>div { gap:7px; }
+.assistant-widget .change-list dt { width:90px; }
+.app-shell>.modal-backdrop,.app-shell>.drawer-backdrop { z-index:70; }
+@media(max-width:1050px) and (min-width:721px) { .brand.hr-brand { gap:6px; } .brand.hr-brand strong { font-size:15px; } .brand.hr-brand .brand-symbol { width:29px; height:33px; } }
+@media(max-width:720px) { .brand.hr-brand strong { font-size:20px; } .assistant-launcher { right:17px; bottom:17px; min-height:47px; padding:0 16px; } .assistant-widget { right:12px; bottom:77px; width:calc(100vw - 24px); height:min(720px,calc(100dvh - 95px)); } .main-area { padding-bottom:80px; } }

@@ -19,6 +19,6 @@ export function jsonResponse(body: unknown, status = 200) {
 
 export function apiError(error: unknown) {
   if (error instanceof HttpError) return jsonResponse({ error: error.message }, error.status);
-  console.error("TSIN API request failed:", error instanceof Error ? error.message : "Unknown error");
+  console.error("HR Assistant API request failed:", error instanceof Error ? error.message : "Unknown error");
   return jsonResponse({ error: "本地服务处理失败，请稍后重试；若持续失败，请查看服务终端。" }, 500);
 }
