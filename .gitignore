@@ -3,6 +3,7 @@ node_modules/
 .data/
 .pnpm-store/
 .logs/
+docs/diagrams/*.delivery.json
 *.tsbuildinfo
 *.log
 .env*

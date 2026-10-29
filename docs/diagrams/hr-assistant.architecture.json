@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HR招聘助手 · 系统架构",
+    "locale": "zh-CN",
+    "output": "docs/diagrams/hr-assistant.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/yhydumpling/hr-assistant.git",
+      "revision": "d84bf614c5dc1263299556161560543e09e15ffe",
+      "provider": "github",
+      "link_mode": "web"
+    }
+  },
+  "components": [
+    {
+      "id": "hr-user", "type": "external", "icon": "person",
+      "label": "HR", "sublabel": "招聘负责人",
+      "pos": [40, 55], "size": [100, 84],
+      "sources": [{ "path": "src/app/_components/recruiting-workspace.tsx", "line": 50, "end_line": 71, "label": "HR操作入口" }]
+    },
+    {
+      "id": "hr-workspace", "type": "frontend",
+      "label": "招聘工作台", "sublabel": "台账 · 简历 · 对话",
+      "pos": [245, 55], "size": [170, 84],
+      "sources": [
+        { "path": "src/app/_components/recruiting-workspace.tsx", "line": 26, "end_line": 88, "label": "工作台与共享会话" },
+        { "path": "src/features/intake/components/resume-intake.tsx", "line": 48, "end_line": 62, "label": "人工核对与保存" },
+        { "path": "src/features/assistant/components/email-draft-card.tsx", "line": 32, "end_line": 42, "label": "邮件草稿与mailto" }
+      ]
+    },
+    {
+      "id": "http-entry", "type": "backend",
+      "label": "HTTP API", "sublabel": "Route Handlers",
+      "pos": [575, 55], "size": [180, 84],
+      "sources": [
+        { "path": "src/app/api/assistant/route.ts", "line": 1, "end_line": 7, "label": "对话入口" },
+        { "path": "src/app/api/resumes/parse/route.ts", "line": 1, "end_line": 15, "label": "简历解析入口" },
+        { "path": "src/app/api/candidates/route.ts", "line": 8, "end_line": 24, "label": "档案保存入口" }
+      ]
+    },
+    {
+      "id": "assistant-service", "type": "backend",
+      "label": "招聘助手服务", "sublabel": "意图 · 查询 · 预览",
+      "pos": [940, 55], "size": [190, 84],
+      "sources": [
+        { "path": "src/server/services/assistant.service.ts", "line": 136, "end_line": 192, "label": "查询与操作编排" },
+        { "path": "src/server/parsers/intent-parser.ts", "line": 182, "end_line": 245, "label": "本地意图与补充信息" },
+        { "path": "src/server/integrations/index.ts", "line": 3, "end_line": 19, "label": "预留接口默认关闭" }
+      ]
+    },
+    {
+      "id": "resume-service", "type": "backend",
+      "label": "简历资料服务", "sublabel": "读取 · 提取 · 复核",
+      "pos": [575, 245], "size": [180, 84],
+      "sources": [
+        { "path": "src/server/services/resume.service.ts", "line": 1, "end_line": 26, "label": "文件读取与字段提取" },
+        { "path": "src/server/services/recruitment.service.ts", "line": 20, "end_line": 45, "label": "保存前复提取与校验" },
+        { "path": "src/lib/resume-schema.ts", "line": 1, "end_line": 61, "label": "八字段共享契约" }
+      ]
+    },
+    {
+      "id": "transaction-repository", "type": "backend",
+      "label": "数据仓储与事务", "sublabel": "行锁 · 版本 · 幂等",
+      "pos": [940, 245], "size": [190, 84],
+      "sources": [
+        { "path": "src/server/repositories/actions.repository.ts", "line": 12, "end_line": 57, "label": "确认后写入与重复保护" },
+        { "path": "src/server/repositories/workspace.repository.ts", "line": 35, "end_line": 49, "label": "档案与原件入库" },
+        { "path": "src/server/db/client.ts", "line": 32, "end_line": 45, "label": "事务提交与回滚" }
+      ]
+    },
+    {
+      "id": "postgres-store", "type": "database",
+      "label": "PostgreSQL", "sublabel": "业务表 · 原文 · 原件",
+      "pos": [940, 435], "size": [190, 84],
+      "sources": [
+        { "path": "db/schema.sql", "line": 1, "end_line": 63, "label": "五张业务表" },
+        { "path": "src/server/db/client.ts", "line": 8, "end_line": 17, "label": "数据库连接池" }
+      ]
+    },
+    {
+      "id": "user-mail-client", "type": "external",
+      "label": "用户邮件客户端", "sublabel": "用户核对后发送",
+      "pos": [245, 245], "size": [170, 84],
+      "sources": [{ "path": "src/features/assistant/components/email-draft-card.tsx", "line": 32, "end_line": 42, "label": "仅请求打开邮件客户端" }]
+    }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Next.js 服务端 · 同一应用进程", "wraps": ["http-entry", "assistant-service", "resume-service", "transaction-repository"], "pad": 28 }
+  ],
+  "connections": [
+    { "id": "hr-operates-workspace", "from": "hr-user", "to": "hr-workspace", "label": "操作", "variant": "emphasis" },
+    { "id": "workspace-http", "from": "hr-workspace", "to": "http-entry", "label": "HTTP", "variant": "emphasis" },
+    { "id": "assistant-entry", "from": "http-entry", "to": "assistant-service", "label": "对话 / 确认", "variant": "emphasis" },
+    { "id": "assistant-data", "from": "assistant-service", "to": "transaction-repository", "label": "查询 / 确认写入", "variant": "emphasis" },
+    { "id": "repository-sql", "from": "transaction-repository", "to": "postgres-store", "label": "SQL / 事务", "variant": "emphasis" },
+    { "id": "resume-entry", "from": "http-entry", "to": "resume-service", "label": "解析 / 提交资料" },
+    { "id": "resume-save", "from": "resume-service", "to": "transaction-repository", "label": "HR确认后入库" },
+    { "id": "open-mail-client", "from": "hr-workspace", "to": "user-mail-client", "label": "点击 mailto" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "资料处理", "items": ["PDF文本层 / DOCX / TXT / 粘贴文本", "八字段标准、原文依据与人工修订"] },
+    { "dot": "emerald", "title": "状态变更", "items": ["待确认操作 → 版本检查 → 事务提交", "重复确认返回原结果；邮件仍为草稿"] },
+    { "dot": "amber", "title": "运行边界", "items": ["本地规则；无外部LLM、OCR或SMTP调用", "招聘软件 / 企业微信接口默认关闭"] }
+  ]
+}

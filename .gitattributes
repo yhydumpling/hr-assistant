@@ -1,0 +1,4 @@
+# Preserve the exact Archify export; review its editable JSON and diagram instead.
+docs/diagrams/hr-assistant.html -text linguist-generated=true -whitespace
+docs/diagrams/licenses/** linguist-vendored=true
+docs/images/** linguist-documentation=true

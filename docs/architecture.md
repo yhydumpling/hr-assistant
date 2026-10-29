@@ -2,6 +2,16 @@
 
 HR招聘助手使用一个 Next.js 应用和一个 PostgreSQL 数据库。前端按业务功能组织，服务端按请求、业务与数据访问分层。
 
+## 系统总览
+
+![HR招聘助手模块运行架构](images/architecture.png)
+
+[交互式架构图](diagrams/hr-assistant.html) · [可编辑源文件](diagrams/hr-assistant.architecture.json)
+
+图中展示模块的运行关系。`server` 内的业务服务、解析器、仓储和连接池都属于同一 Next.js 进程，不对应独立部署的微服务。交互版下载后可用浏览器打开，图形使用 [Archify](https://github.com/tt-a1i/archify) 生成。
+
+业务概念见 [领域词汇](domain.md)，其他说明见 [文档索引](README.md)。
+
 ## 目录与职责
 
 ```text
@@ -106,3 +116,4 @@ HR 核对字段并选择岗位后，服务端从原件或原文重新提取，�
 - [Twenty](https://github.com/twentyhq/twenty)：以产品界面与功能说明组织项目入口文档。
 - [Documenso](https://github.com/documenso/documenso)：区分产品介绍、技术栈与本地运行说明。
 - [飞书多维表格 · 分组和筛选](https://www.feishu.cn/hc/zh-CN/articles/360049067904)：参考表格工具栏、分组和筛选的组织方式。
+- [Archify](https://github.com/tt-a1i/archify)：架构图渲染与可编辑架构描述。

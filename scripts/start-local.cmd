@@ -1,8 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
-set "BUNDLED_RUNTIME=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies"
-if exist "%BUNDLED_RUNTIME%\node\bin\node.exe" set "PATH=%BUNDLED_RUNTIME%\node\bin;%BUNDLED_RUNTIME%\bin\fallback;%PATH%"
+cd /d "%~dp0.."
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js 22.x or 24.x is required.
