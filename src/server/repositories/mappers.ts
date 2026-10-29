@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Candidate, Job, ResumeFields, Stage } from "@/lib/types";
+import type { ResumeReview } from "@/lib/resume-schema";
 import type { DatabaseRow as Row } from "@/server/db/client";
 
 export function id(prefix: string) { return `${prefix}_${randomUUID()}`; }
@@ -11,6 +12,6 @@ export function jobFromRow(row: Row): Job {
 export function candidateFromRow(row: Row): Candidate {
   return { ...parseJson<ResumeFields>(row.fields_json), id: String(row.id), jobId: String(row.job_id), jobTitle: String(row.job_title), stage: String(row.stage) as Stage,
     nextAction: String(row.next_action), nextActionAt: row.next_action_at ? iso(row.next_action_at) : null,
-    version: Number(row.version), sourceName: String(row.source_name), rawText: String(row.raw_text), hasFile: Boolean(row.has_file), createdAt: iso(row.created_at), updatedAt: iso(row.updated_at) };
+    version: Number(row.version), sourceName: String(row.source_name), rawText: String(row.raw_text), hasFile: Boolean(row.has_file), resumeReview: row.resume_parse ? parseJson<ResumeReview>(row.resume_parse) : null, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at) };
 }
-export const CANDIDATE_SELECT = "SELECT c.id,c.job_id,c.fields_json,c.stage,c.next_action,c.next_action_at,c.version,c.source_name,c.raw_text,c.confirmation_token,c.submission_hash,c.created_at,c.updated_at,j.title AS job_title,c.file_blob IS NOT NULL AS has_file FROM candidates c JOIN jobs j ON j.id=c.job_id";
+export const CANDIDATE_SELECT = "SELECT c.id,c.job_id,c.fields_json,c.stage,c.next_action,c.next_action_at,c.version,c.source_name,c.raw_text,c.resume_parse,c.confirmation_token,c.submission_hash,c.created_at,c.updated_at,j.title AS job_title,c.file_blob IS NOT NULL AS has_file FROM candidates c JOIN jobs j ON j.id=c.job_id";

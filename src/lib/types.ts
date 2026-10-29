@@ -1,3 +1,6 @@
+import type { ResumeFields, ResumeParseDetails, ResumeReview } from "@/lib/resume-schema";
+export type { ResumeFields } from "@/lib/resume-schema";
+
 export const STAGES = ["简历筛选", "待一面", "待复试", "Offer", "待入职", "已入职", "已淘汰"] as const;
 export type Stage = (typeof STAGES)[number];
 export type InterviewRound = "一面" | "复试" | "终面";
@@ -10,18 +13,7 @@ export type Job = {
   createdAt: string;
 };
 
-export type ResumeFields = {
-  name: string;
-  phone: string;
-  email: string;
-  city: string;
-  education: string;
-  currentTitle: string;
-  yearsOfExperience: number | null;
-  skills: string[];
-};
-
-export type ResumeDraft = {
+export type ResumeDraft = ResumeParseDetails & {
   fields: ResumeFields;
   rawText: string;
   sourceName: string;
@@ -41,6 +33,7 @@ export type Candidate = ResumeFields & {
   sourceName: string;
   rawText: string;
   hasFile: boolean;
+  resumeReview?: ResumeReview | null;
   createdAt: string;
   updatedAt: string;
 };

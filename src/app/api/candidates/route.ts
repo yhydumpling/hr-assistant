@@ -4,7 +4,7 @@ import { HttpError } from "@/server/errors";
 import { text } from "@/server/validation";
 import { apiError, formBody, jsonResponse } from "@/app/api/_shared";
 export const runtime = "nodejs";
-const MIME_BY_EXTENSION: Record<string, string> = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain; charset=utf-8" };
+const MIME_BY_EXTENSION: Record<string, string> = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain" };
 export async function POST(request: Request) {
   try {
     const form = await formBody(request);

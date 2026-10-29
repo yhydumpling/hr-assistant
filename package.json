@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 3001",
     "typecheck": "tsc --noEmit",
-    "db:init": "node scripts/init-db.mjs"
+    "db:init": "node scripts/init-db.mjs",
+    "db:migrate": "node scripts/init-db.mjs --schema-only"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

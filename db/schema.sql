@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS candidates (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Additive change for both existing installations and fresh databases.
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_parse JSONB
+  CHECK (resume_parse IS NULL OR jsonb_typeof(resume_parse) = 'object');
+
 CREATE TABLE IF NOT EXISTS interviews (
   id TEXT PRIMARY KEY,
   candidate_id TEXT NOT NULL REFERENCES candidates(id),

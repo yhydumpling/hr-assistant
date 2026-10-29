@@ -1,0 +1,39 @@
+.resume-parse-insights { margin:-7px 0 21px; }
+.resume-parse-summary { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:9px 14px; padding:0 2px 11px; color:#73617e; font-size:11px; }
+.resume-source-format,.resume-parse-counts { display:flex; align-items:center; gap:7px; }
+.resume-parse-counts { flex-wrap:wrap; gap:12px; }
+.resume-parse-counts strong { font-weight:600; margin-left:3px; }
+.resume-parse-counts>small { color:#81778a; font-size:10px; }
+.resume-parse-counts>span:nth-of-type(2) { color:#986a2e; }
+.resume-parse-counts>span:nth-of-type(3) { color:#81778a; }
+.resume-field-status { display:inline-block; padding:1px 5px; border-radius:4px; white-space:nowrap; font-size:10px; line-height:1.6; font-weight:400; }
+.resume-field-status.found { color:#457263; background:#edf5f0; }
+.resume-field-status.review { color:#97652b; background:#fff3df; }
+.resume-field-status.missing { color:#81778a; background:#f1eef4; }
+.resume-field-status.modified { color:#73549c; background:#efe8f8; }
+.intake-review .resume-field-label { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.intake-review .resume-field-label>span { flex:1; }
+.resume-parse-warnings { display:flex; align-items:flex-start; gap:7px; margin-bottom:12px; padding:10px; border:1px solid #f0e2c7; border-radius:6px; background:#fffaf0; color:#92692f; font-size:11px; line-height:1.8; }
+.resume-parse-warnings>svg { flex-shrink:0; margin-top:3px; }
+.resume-parse-warnings ul { margin:0; padding-left:15px; }
+.resume-evidence-panel { border:1px solid #e9e0f0; border-radius:7px; background:#fdfbff; overflow:hidden; }
+.resume-evidence-panel>summary,.resume-text-panel>summary { cursor:pointer; color:#78618b; font-size:11px; padding:10px 12px; line-height:1.7; }
+.resume-evidence-panel>summary>span { float:right; color:#94879f; font-size:10px; margin-left:8px; }
+.resume-evidence-panel>summary:focus-visible,.resume-text-panel>summary:focus-visible { outline:2px solid #9b79bf; outline-offset:-3px; }
+.resume-evidence-body { padding:0 12px 12px; border-top:1px solid #eee7f4; }
+.resume-evidence-note { margin:10px 0 5px; font-size:11px; line-height:1.8; color:#82758d; }
+.resume-field-evidence { padding:11px 0; border-bottom:1px solid #eee7f4; }
+.resume-field-evidence>div { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.resume-field-evidence strong { font-size:12px; font-weight:550; color:#6e597f; }
+.resume-field-evidence>p { margin:5px 0 0; font-size:11px; line-height:1.8; color:#85768e; overflow-wrap:anywhere; }
+.resume-field-evidence>p.resume-extracted-value { color:#6e597f; }
+.resume-field-evidence>p.resume-candidate-values { color:#97652b; }
+.resume-field-evidence blockquote { margin:7px 0 0; padding:5px 8px; border-left:2px solid #d9c8e8; background:#f5f0fa; font-size:11px; line-height:1.8; color:#756181; overflow-wrap:anywhere; }
+.resume-field-evidence blockquote small { display:block; font-size:10px; color:#94849e; }
+.resume-text-panel { margin-top:9px; }
+.resume-text-panel>summary { padding:6px 0; }
+.resume-text-panel>p { color:#85768e; font-size:10px; line-height:1.7; margin:5px 0 9px; }
+.resume-text-panel>ol { margin:0; padding:9px 9px 9px 38px; max-height:300px; overflow:auto; border:1px solid #e9e0f0; border-radius:5px; background:#fff; color:#998ca4; font-size:11px; line-height:1.9; }
+.resume-text-panel li { padding-left:4px; }
+.resume-text-panel li>span { white-space:pre-wrap; overflow-wrap:anywhere; color:#756181; }
+@media(max-width:720px) { .resume-parse-summary { align-items:flex-start; flex-direction:column; } .resume-evidence-panel>summary>span { float:none; display:block; margin:2px 0 0 13px; } }

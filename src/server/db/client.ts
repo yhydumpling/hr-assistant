@@ -19,6 +19,7 @@ function databaseError(error: unknown): Error {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
   if (["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "28P01", "3D000", "57P03"].includes(code)) return new HttpError(503, "无法连接 PostgreSQL，请检查 DATABASE_URL 和数据库服务，再运行 pnpm db:init。");
   if (code === "42P01") return new HttpError(503, "PostgreSQL 表尚未初始化，请先运行 pnpm db:init。");
+  if (code === "42703") return new HttpError(503, "PostgreSQL 表结构需要更新，请运行 pnpm db:migrate 后重试。");
   if (code === "23505") return new HttpError(409, "记录发生重复冲突，请刷新后重试。");
   return error instanceof Error ? error : new Error("Database request failed");
 }

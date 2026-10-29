@@ -1,4 +1,5 @@
 import type { Activity, Candidate, Interview, Job, ResumeFields, Workspace } from "@/lib/types";
+import type { ResumeReview } from "@/lib/resume-schema";
 import { query, transaction } from "@/server/db/client";
 import { HttpError } from "@/server/errors";
 import { CANDIDATE_SELECT, candidateFromRow, id, iso, jobFromRow, parseJson } from "@/server/repositories/mappers";
@@ -9,6 +10,7 @@ export type PreparedCandidate = {
   rawText: string;
   token: string;
   fingerprint: string;
+  review: ResumeReview;
   file?: { bytes: Uint8Array; name: string; mime: string };
 };
 
@@ -36,13 +38,13 @@ export async function insertCandidate(input: PreparedCandidate): Promise<Candida
     if (!job.rows.length) throw new HttpError(404, "岗位不存在，请重新选择岗位。");
     const candidateId = id("candidate");
     const now = new Date().toISOString();
-    const inserted = await query("INSERT INTO candidates(id,job_id,fields_json,stage,next_action,next_action_at,source_name,raw_text,file_blob,file_mime,file_name,confirmation_token,submission_hash,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(confirmation_token) DO NOTHING RETURNING id", [candidateId, jobId, JSON.stringify(fields), "简历筛选", "人工初筛", null, input.file?.name || "粘贴的简历文本", rawText, input.file ? Buffer.from(input.file.bytes) : null, input.file?.mime || null, input.file?.name || null, token, fingerprint, now, now], client);
+    const inserted = await query("INSERT INTO candidates(id,job_id,fields_json,stage,next_action,next_action_at,source_name,raw_text,file_blob,file_mime,file_name,confirmation_token,submission_hash,created_at,updated_at,resume_parse) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(confirmation_token) DO NOTHING RETURNING id", [candidateId, jobId, JSON.stringify(fields), "简历筛选", "人工初筛", null, input.file?.name || "粘贴的简历文本", rawText, input.file ? Buffer.from(input.file.bytes) : null, input.file?.mime || null, input.file?.name || null, token, fingerprint, now, now, JSON.stringify(input.review)], client);
     if (!inserted.rows.length) {
       const existing = (await query(`${CANDIDATE_SELECT} WHERE c.confirmation_token=$1`, [token], client)).rows[0];
       if (!existing || existing.submission_hash !== fingerprint) throw new HttpError(409, "这个确认令牌已经用于另一份内容，请重新解析简历。");
       return candidateFromRow(existing);
     }
-    await query("INSERT INTO activities(id,candidate_id,title,detail,created_at) VALUES($1,$2,$3,$4,$5)", [id("activity"), candidateId, "人工确认简历入库", `${fields.name} · 已核对规则提取结果并建立应聘档案。`, now], client);
+    await query("INSERT INTO activities(id,candidate_id,title,detail,created_at) VALUES($1,$2,$3,$4,$5)", [id("activity"), candidateId, "人工确认简历入库", `${fields.name} · 人工确认字段并建立应聘档案${input.review.correctedFields.length ? `，调整 ${input.review.correctedFields.length} 项字段` : ""}。`, now], client);
     return candidateFromRow((await query(`${CANDIDATE_SELECT} WHERE c.id=$1`, [candidateId], client)).rows[0]);
   });
 }
